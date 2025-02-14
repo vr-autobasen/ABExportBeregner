@@ -21,8 +21,8 @@ def load_config():
 def update_from_github():
     try:
         import requests
-        repo_url = "DIT_GITHUB_REPO_URL"
-        response = requests.get(f"{repo_url}/raw/main/script.py")
+        repo_url = "https://github.com/vr-autobasen/ABExportBeregner.git"
+        response = requests.get(f"{repo_url}/raw/main/ExportCalc_inkl_van.py")
         if response.status_code == 200:
             with open(__file__, 'w', encoding='utf-8') as file:
                 file.write(response.text)
@@ -52,19 +52,6 @@ def load_config():
     except FileNotFoundError:
         raise Exception("config.txt fil ikke fundet i samme mappe som scriptet")
 
-def update_from_github():
-    try:
-        import requests
-        repo_url = "DIT_GITHUB_REPO_URL"
-        response = requests.get(f"{repo_url}/raw/main/script.py")
-        if response.status_code == 200:
-            with open(__file__, 'w', encoding='utf-8') as file:
-                file.write(response.text)
-            print("Script opdateret fra GitHub")
-        else:
-            print("Kunne ikke hente opdateringer")
-    except Exception as e:
-        print(f"Fejl ved opdatering: {e}")
 
 
 def get_sheets_service():
