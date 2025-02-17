@@ -28,7 +28,7 @@ def update_from_github():
         if response.status_code == 200:
             with open(__file__, 'w', encoding='utf-8') as file:
                 file.write(response.text)
-            print("Script opdateret fra GitHub - Peter er sej")
+            print("Script opdateret fra GitHub - NU BØR DET VIRKE")
         else:
             print(f"Kunne ikke hente opdateringer. Status kode: {response.status_code}")
     except Exception as e:
