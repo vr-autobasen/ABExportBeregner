@@ -28,7 +28,7 @@ def update_from_github():
         if response.status_code == 200:
             with open(__file__, 'w', encoding='utf-8') as file:
                 file.write(response.text)
-            print("Script opdateret fra GitHub")
+            print("Script opdateret fra GitHub - Peter er sej")
         else:
             print(f"Kunne ikke hente opdateringer. Status kode: {response.status_code}")
     except Exception as e:
@@ -237,13 +237,20 @@ def update_vehicle_data(sheets, vehicle_type, total_weight, handelspris, new_pri
             body={'values': update['values']}
         ).execute()
 
-def get_export_tax(sheets, vehicle_type):
+
+def get_export_tax(sheets, vehicle_type, eval_data):
     tax_range = 'Brugte Varebiler!G32' if vehicle_type == "Varebil" else 'finalTax01'
     result = sheets.values().get(
         spreadsheetId=TAX_SPREADSHEET_ID,
         range=tax_range
     ).execute()
-    return float(result.get('values', [[0]])[0][0])
+    export_tax = float(result.get('values', [[0]])[0][0])
+
+    registration_tax = eval_data.get('registration_tax', 0)
+    if export_tax > registration_tax:
+        return registration_tax
+
+    return export_tax
 
 def calculate_new_price(eval_data, manual_price=None):
     if manual_price is not None:
@@ -258,6 +265,7 @@ def calculate_new_price(eval_data, manual_price=None):
         return eval_data['evaluation'] + eval_data['registration_tax']
     else:
         return None
+
 
 
 def log_to_file(registration_number, type, vehicle_info, new_price, export_tax, reduced_tax, handelspris_input, norm_km_input, current_km_input, sheet_handelspris, age_group):
