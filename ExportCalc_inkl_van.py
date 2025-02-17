@@ -303,11 +303,13 @@ def main():
         try:
             sheets = get_sheets_service()
 
-            registration_number = input("Indtast nummerplade (eller 'q' for at afslutte): ")
+            # Spørg efter nummerplade
+            registration_number = input("\nIndtast nummerplade (eller 'q' for at afslutte): ").strip()
+
+            # Check om brugeren vil afslutte
             if registration_number.lower() == 'q':
                 print("Afslutter programmet...")
                 break
-
             print("Henter basis køretøjsdata...")
             basic_data = fetch_basic_vehicle_data(registration_number, api_token)
             vehicle_type = basic_data['type']
@@ -356,7 +358,7 @@ def main():
             log_to_file(registration_number, vehicle_type, vehicle_info, new_price, export_tax, reduced_tax,
                         handelspris_input, norm_km_input, current_km_input, handelspris, age_group)
 
-            input("\nTryk Enter for at lave et nyt opslag...")
+
 
         except Exception as e:
             print(f"Fejl: {e}")
