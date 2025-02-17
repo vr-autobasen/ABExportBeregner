@@ -22,7 +22,7 @@ def load_config():
 def update_from_github():
     try:
         import requests
-        raw_url = "https://raw.githubusercontent.com/vr-autobasen/ABExportBeregner/refs/heads/main/ExportCalc_inkl_van.py?token=GHSAT0AAAAAAC6YCSJMEYA245BBNOFQJRIWZ5TFRVQ"
+        raw_url = "https://raw.githubusercontent.com/vr-autobasen/ABExportBeregner/refs/heads/main/ExportCalc_inkl_van.py"
         response = requests.get(raw_url)
 
         if response.status_code == 200:
