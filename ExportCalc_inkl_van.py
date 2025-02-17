@@ -349,7 +349,7 @@ def main():
 
             update_vehicle_data(sheets, vehicle_type, total_weight, handelspris, new_price)
 
-            export_tax = get_export_tax(sheets, vehicle_type)
+            export_tax = get_export_tax(sheets, vehicle_type eval_data)
 
             brand = basic_data.get('brand', 'N/A')
             model = basic_data.get('model', 'N/A')
