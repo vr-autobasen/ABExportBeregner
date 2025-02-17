@@ -18,17 +18,19 @@ def load_config():
     except FileNotFoundError:
         raise Exception("config.txt fil ikke fundet i samme mappe som scriptet")
 
+
 def update_from_github():
     try:
         import requests
-        repo_url = "https://github.com/vr-autobasen/ABExportBeregner.git"
-        response = requests.get(f"{repo_url}/raw/main/ExportCalc_inkl_van.py")
+        raw_url = "https://raw.githubusercontent.com/vr-autobasen/ABExportBeregner/refs/heads/main/ExportCalc_inkl_van.py?token=GHSAT0AAAAAAC6YCSJMEYA245BBNOFQJRIWZ5TFRVQ"
+        response = requests.get(raw_url)
+
         if response.status_code == 200:
             with open(__file__, 'w', encoding='utf-8') as file:
                 file.write(response.text)
             print("Script opdateret fra GitHub")
         else:
-            print("Kunne ikke hente opdateringer")
+            print(f"Kunne ikke hente opdateringer. Status kode: {response.status_code}")
     except Exception as e:
         print(f"Fejl ved opdatering: {e}")
 
