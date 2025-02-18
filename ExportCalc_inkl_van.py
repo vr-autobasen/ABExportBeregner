@@ -42,18 +42,6 @@ SERVICE_ACCOUNT_FILE = config['SERVICE_ACCOUNT_FILE']
 KM_SPREADSHEET_ID = config['KM_SPREADSHEET_ID']
 TAX_SPREADSHEET_ID = config['TAX_SPREADSHEET_ID']
 
-def load_config():
-    try:
-        with open('config.txt', 'r', encoding='utf-8') as file:
-            config = {}
-            for line in file:
-                if '=' in line:
-                    key, value = line.strip().split('=')
-                    config[key.strip()] = value.strip()
-            return config
-    except FileNotFoundError:
-        raise Exception("config.txt fil ikke fundet i samme mappe som scriptet")
-
 
 
 def get_sheets_service():
@@ -70,12 +58,18 @@ def get_sheets_service():
                 continue
             raise
 
+
 def fetch_basic_vehicle_data(registration_number, api_token):
-    url = f"https://api.nrpla.de/{registration_number}"
-    headers = {"Authorization": f"Bearer {api_token}"}
+    url = f"https://api.synsbasen.dk/v1/vehicles/registration/{registration_number}"
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json"
+    }
+
     try:
-        response = requests.get(url, headers=headers, timeout=30)
+        response = requests.get(url, headers=headers)
         response.raise_for_status()
+
         data = response.json()["data"]
         return {
             'fuel_efficiency': data.get('fuel_efficiency'),
@@ -84,11 +78,51 @@ def fetch_basic_vehicle_data(registration_number, api_token):
             'model': data.get('model'),
             'version': data.get('version'),
             'brand': data.get('brand'),
-            'type': data.get('type'),
+            'type': data.get('kind'),
             'total_weight': data.get('total_weight')
         }
     except Exception as e:
-        raise Exception(f"Fejl ved hentning af basis køretøjsdata: {e}")
+        raise Exception(f"Fejl ved hentning af køretøjsdata: {str(e)}")
+
+
+def fetch_engine_data(registration_number, api_token):
+    url = "https://api.synsbasen.dk/v1/vehicles"
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json"
+    }
+    params = {
+        "query": {
+            "registration_start": registration_number
+        },
+        "method": "SELECT",
+        "expand[]": "engine"
+    }
+
+    response = requests.post(url, headers=headers, json=params)
+    return response.json()["data"][0]["engine"]
+
+
+def fetch_engine_data(registration_number, api_token):
+    url = f"https://api.synsbasen.dk/v1/vehicles/registration/{registration_number}?expand[]=engine"
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+
+        data = response.json()["data"]
+        engine_data = data.get("engine", {})
+        return {
+            'fuel_efficiency': engine_data.get('fuel_efficiency'),
+            'fuel_type': engine_data.get('fuel_type')
+        }
+    except Exception as e:
+        raise Exception(f"Fejl ved hentning af motordata: {str(e)}")
+
 
 def update_km_data(sheets, handelspris, norm_km, current_km):
     max_attempts = 3
@@ -116,19 +150,32 @@ def update_km_data(sheets, handelspris, norm_km, current_km):
 
 
 def fetch_evaluation_data(registration_number, api_token):
-    url = f"https://api.nrpla.de/evaluations/{registration_number}"
-    headers = {"Authorization": f"Bearer {api_token}"}
+    url = f"https://api.synsbasen.dk/v1/vehicles/registration/{registration_number}?expand[]=appraisals"
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json"
+    }
+
     try:
         response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()
-        data = response.json()["data"][0]
+
+        appraisals = response.json().get("data", {}).get("appraisals", {})
+
+        if not appraisals.get("service_available") or not appraisals.get("data"):
+            raise Exception("Ingen vurderingsdata tilgængelig")
+
+        # Sorter efter dato og tag den nyeste vurdering
+        latest_appraisal = sorted(appraisals["data"], key=lambda x: x["date"], reverse=True)[0]
+
         return {
-            'retail_price': data.get('retail_price'),
-            'evaluation': data.get('evaluation', 0),
-            'registration_tax': data.get('registration_tax', 0)
+            'retail_price': latest_appraisal.get('original_price'),
+            'evaluation': latest_appraisal.get('value', 0),
+            'registration_tax': latest_appraisal.get('registration_tax', 0)
         }
     except Exception as e:
         raise Exception(f"Fejl ved hentning af evaluerings data: {e}")
+
 
 def calculate_vehicle_age(registration_date):
     current_date = datetime.now()
@@ -248,10 +295,14 @@ def get_export_tax(sheets, vehicle_type):
 def calculate_new_price(eval_data, manual_price=None):
     if manual_price is not None:
         try:
-            return float(manual_price)
+            price = float(manual_price)
+            if price <= 0:
+                raise ValueError("Pris skal være større end 0")
+            return price
         except ValueError:
             raise Exception("Ugyldig manuel pris indtastet")
 
+    # Hvis ingen manuel pris, prøv at beregne automatisk
     if eval_data.get('retail_price'):
         return eval_data['retail_price']
     elif eval_data.get('evaluation') and eval_data.get('registration_tax'):
@@ -261,21 +312,16 @@ def calculate_new_price(eval_data, manual_price=None):
 
 
 def get_export_tax(sheets, vehicle_type, registration_tax):
-    # Hent værdien fra G32 (eller tilsvarende celle afhængig af køretøjstype)
+    # Hent altid eksportafgift fra sheet
     tax_range = 'Brugte Varebiler!G32' if vehicle_type == "Varebil" else 'finalTax01'
     result = sheets.values().get(
         spreadsheetId=TAX_SPREADSHEET_ID,
         range=tax_range
     ).execute()
 
-    export_tax = float(result.get('values', [[0]])[0][0])
+    # Returner altid værdien fra sheetet
+    return float(result.get('values', [[0]])[0][0])
 
-    # Hvis export_tax er større end registration_tax, returner registration_tax
-    if export_tax > registration_tax:
-        return registration_tax
-
-    # Ellers returner export_tax
-    return export_tax
 
 
 def log_to_file(registration_number, type, vehicle_info, new_price, export_tax, reduced_tax, handelspris_input, norm_km_input, current_km_input, sheet_handelspris, age_group):
@@ -354,8 +400,9 @@ def main():
                 manual_price = input("Kunne ikke beregne nypris automatisk. Indtast manuel nypris: ")
                 new_price = calculate_new_price(eval_data, manual_price)
 
-            update_co2_in_sheets(sheets, basic_data['fuel_type'], basic_data['fuel_efficiency'],
-                               basic_data['registration_date'], vehicle_type)
+            engine_data = fetch_engine_data(registration_number, api_token)
+            update_co2_in_sheets(sheets, engine_data['fuel_type'], engine_data['fuel_efficiency'],
+                                 basic_data['registration_date'], vehicle_type)
 
             update_vehicle_data(sheets, vehicle_type, total_weight, handelspris, new_price)
 
