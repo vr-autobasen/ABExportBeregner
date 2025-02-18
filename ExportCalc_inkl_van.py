@@ -28,7 +28,7 @@ def update_from_github():
         if response.status_code == 200:
             with open(__file__, 'w', encoding='utf-8') as file:
                 file.write(response.text)
-            print("Script opdateret fra GitHub")
+            print("Script opdateret fra GitHub - nu med afgiftloft.")
         else:
             print(f"Kunne ikke hente opdateringer. Status kode: {response.status_code}")
     except Exception as e:
@@ -260,6 +260,24 @@ def calculate_new_price(eval_data, manual_price=None):
         return None
 
 
+def get_export_tax(sheets, vehicle_type, registration_tax):
+    # Hent værdien fra G32 (eller tilsvarende celle afhængig af køretøjstype)
+    tax_range = 'Brugte Varebiler!G32' if vehicle_type == "Varebil" else 'finalTax01'
+    result = sheets.values().get(
+        spreadsheetId=TAX_SPREADSHEET_ID,
+        range=tax_range
+    ).execute()
+
+    export_tax = float(result.get('values', [[0]])[0][0])
+
+    # Hvis export_tax er større end registration_tax, returner registration_tax
+    if export_tax > registration_tax:
+        return registration_tax
+
+    # Ellers returner export_tax
+    return export_tax
+
+
 def log_to_file(registration_number, type, vehicle_info, new_price, export_tax, reduced_tax, handelspris_input, norm_km_input, current_km_input, sheet_handelspris, age_group):
     # Opret logs mappe hvis den ikke eksisterer
     if not os.path.exists('logs'):
@@ -341,7 +359,9 @@ def main():
 
             update_vehicle_data(sheets, vehicle_type, total_weight, handelspris, new_price)
 
-            export_tax = get_export_tax(sheets, vehicle_type)
+            # I main-funktionen
+            registration_tax = eval_data['registration_tax']
+            export_tax = get_export_tax(sheets, vehicle_type, registration_tax)
 
             brand = basic_data.get('brand', 'N/A')
             model = basic_data.get('model', 'N/A')
