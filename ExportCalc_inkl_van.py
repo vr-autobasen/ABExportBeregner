@@ -22,7 +22,7 @@ def load_config():
 def update_from_github():
     try:
         import requests
-        raw_url = "https://raw.githubuserscontent.com/vr-autobasen/ABExportBeregner/refs/heads/main/ExportCalc_inkl_van.py"
+        raw_url = "https://raw.githubuserscontent.com/vr-aaaaaautobasen/ABExportBeregner/refs/heads/main/ExportCalc_inkl_van.py"
         response = requests.get(raw_url)
 
         if response.status_code == 200:
@@ -473,10 +473,14 @@ def main():
             handelspris, age_group = find_trade_price_based_on_age(sheets, vehicle_age)
             print(f"Handelspris fra sheet: {handelspris} kr. for aldersgruppen {age_group}.")
 
+            # Find dette sted i koden hvor new_price beregnes
             new_price = calculate_new_price(eval_data)
+            is_manual_price = False  # Tilføj denne variabel
+
             if new_price is None:
                 manual_price = input("Kunne ikke beregne nypris automatisk. Indtast manuel nypris: ")
                 new_price = calculate_new_price(eval_data, manual_price)
+                is_manual_price = True  # Sæt til True når manuel pris er indtastet
 
             engine_data = fetch_engine_data(registration_number, api_token)
             update_co2_in_sheets(sheets, engine_data['fuel_type'], engine_data['fuel_efficiency'],
@@ -514,6 +518,9 @@ def main():
             print(f"\nEuro pris: {eur_price:,.2f} EUR")
             print(f"Omregnet til DKK: {dkk_converted:,.2f} kr.")
             print(f"Total sum (Reduktion + DKK): {total_sum:,.2f} kr.")
+
+            if is_manual_price:
+                print("Bemærk: KRÆVER DOBBELTTJEK")
 
             # Log alle værdier
             log_to_file(registration_number, vehicle_type, vehicle_info, new_price,
