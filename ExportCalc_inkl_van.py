@@ -28,7 +28,7 @@ def update_from_github():
         if response.status_code == 200:
             with open(__file__, 'w', encoding='utf-8') as file:
                 file.write(response.text)
-            print("Script opdateret fra GitHub - henter km stand fra hubben")
+            print("Script opdateret fra GitHub - henter km stand fra hubben inkl EUR beregner fra dagskurs")
         else:
             print(f"Kunne ikke hente opdateringer. Status kode: {response.status_code}")
     except Exception as e:
@@ -57,6 +57,21 @@ def get_sheets_service():
                 time.sleep(2 ** attempt)
                 continue
             raise
+
+
+def get_eur_exchange_rate():
+    url = "https://api.exchangerates.org.uk/latest"
+    headers = {
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return float(response.json()['rates']['DKK'])
+    except Exception as e:
+        # Hvis API'et fejler, brug en standard kurs
+        return 7.4602  # Aktuel standardkurs
 
 
 def fetch_hubspot_mileage(registration_number, api_key):
@@ -380,22 +395,18 @@ def get_export_tax(sheets, vehicle_type, registration_tax):
 
 
 
-def log_to_file(registration_number, type, vehicle_info, new_price, export_tax, reduced_tax, handelspris_input, norm_km_input, current_km_input, sheet_handelspris, age_group):
-    # Opret logs mappe hvis den ikke eksisterer
+def log_to_file(registration_number, type, vehicle_info, new_price, export_tax, reduced_tax, handelspris_input, norm_km_input, current_km_input, sheet_handelspris, age_group, eur_price, dkk_converted, total_sum):
     if not os.path.exists('logs'):
         os.makedirs('logs')
 
-    # Generer filnavn med dagens dato
     filename = f"logs/vehicle_export_log_{datetime.now().strftime('%Y-%m-%d')}.txt"
 
-    # Få antal eksisterende entries i dagens log fil
     try:
         with open(filename, 'r', encoding='utf-8') as f:
             entry_count = sum(1 for line in f if line.startswith('=== Log Entry'))
     except FileNotFoundError:
         entry_count = 0
 
-    # Formater log entry
     log_entry = (
         f"\n=== Log Entry #{entry_count + 1} - {datetime.now().strftime('%H:%M:%S')} ===\n"
         f"1. Nummerplade: {registration_number}\n"
@@ -408,10 +419,12 @@ def log_to_file(registration_number, type, vehicle_info, new_price, export_tax, 
         f"8. Nypris: {new_price:,.2f} kr.\n"
         f"9. Eksportafgift: {export_tax:.2f} kr.\n"
         f"10. Eksportafgift efter reduktion: {reduced_tax:.2f} kr.\n"
+        f"11. Euro pris: {eur_price:,.2f} EUR\n"
+        f"12. Omregnet til DKK: {dkk_converted:,.2f} kr.\n"
+        f"13. Total sum (Reduktion + DKK): {total_sum:,.2f} kr.\n"
         f"{'=' * 50}\n"
     )
 
-    # Skriv til logfil
     with open(filename, 'a', encoding='utf-8') as f:
         f.write(log_entry)
 
@@ -488,10 +501,33 @@ def main():
             print(f"Nypris: {new_price:,.2f} kr.")
             print(f"Eksportafgift: {export_tax:.2f} kr.")
             reduced_tax = (export_tax * 0.85 - 3000) if export_tax > 50000 else export_tax - 11000
-            print(f"Eksportafgift efter reduktion: {reduced_tax:.2f} kr.")
-            log_to_file(registration_number, vehicle_type, vehicle_info, new_price, export_tax, reduced_tax,
-                        handelspris_input, norm_km_input, current_km_input, handelspris, age_group)
 
+            print(f"Eksportafgift efter reduktion: {reduced_tax:.2f} kr.")
+
+            # Derefter håndter euro-beregninger
+            eur_price = float(input("Indtast Euro pris: "))
+            exchange_rate = get_eur_exchange_rate()
+            dkk_converted = eur_price * exchange_rate
+            total_sum = reduced_tax + dkk_converted
+
+            # Print euro-relaterede værdier
+            print(f"\nEuro pris: {eur_price:,.2f} EUR")
+            print(f"Omregnet til DKK: {dkk_converted:,.2f} kr.")
+            print(f"Total sum (Reduktion + DKK): {total_sum:,.2f} kr.")
+
+            # Log alle værdier
+            log_to_file(registration_number, vehicle_type, vehicle_info, new_price,
+                        export_tax, reduced_tax, handelspris_input, norm_km_input,
+                        current_km_input, handelspris, age_group, eur_price,
+                        dkk_converted, total_sum)
+
+
+
+
+        except Exception as e:
+            print(f"Fejl: {e}")
+            time.sleep(2)
+            continue
 
 
         except Exception as e:
