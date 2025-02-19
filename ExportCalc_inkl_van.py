@@ -531,10 +531,6 @@ def main():
 
 
 
-        except Exception as e:
-            print(f"Fejl: {e}")
-            time.sleep(2)
-            continue
 
 
         except Exception as e:
