@@ -22,7 +22,7 @@ def load_config():
 def update_from_github():
     try:
         import requests
-        raw_url = "https://raw.githubusercontent.com/vr-autobasen/ABExportBeregner/refs/heads/main/ExportCalc_inkl_van.py"
+        raw_url = "https://raw.githubusersscontent.com/vr-autobasen/ABExportBeregner/refs/heads/main/ExportCalc_inkl_van.py"
         response = requests.get(raw_url)
 
         if response.status_code == 200:
@@ -57,6 +57,42 @@ def get_sheets_service():
                 time.sleep(2 ** attempt)
                 continue
             raise
+
+
+def fetch_hubspot_mileage(registration_number, api_key):
+    url = "https://api.hubapi.com/crm/v3/objects/deals/search"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "filterGroups": [{
+            "filters": [{
+                "propertyName": "dealname",
+                "operator": "CONTAINS_TOKEN",
+                "value": registration_number.upper()
+            }]
+        }],
+        "properties": ["dealname", "kilometer", "createdate"],
+        "sorts": [{
+            "propertyName": "createdate",
+            "direction": "DESCENDING"
+        }],
+        "limit": 1
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+
+        deals = response.json().get("results", [])
+        if deals:
+            return deals[0].get("properties", {}).get("kilometer")
+        return None
+    except Exception as e:
+        print(f"Fejl ved hentning af kilometertal fra HubSpot: {str(e)}")
+        return None
 
 
 def fetch_basic_vehicle_data(registration_number, api_token):
@@ -411,7 +447,14 @@ def main():
 
             handelspris_input = float(input("Indtast handelsprisen: "))
             norm_km_input = float(input("Indtast norm km: "))
-            current_km_input = float(input("Indtast bilens kørte kilometer: "))
+
+            # Erstat den eksisterende kilometer-input linje med:
+            hubspot_km = fetch_hubspot_mileage(registration_number, config['HUBSPOT_API_KEY'])
+            if hubspot_km:
+                current_km_input = float(hubspot_km)
+                print(f"Kilometertal hentet fra HubSpot: {current_km_input}")
+            else:
+                current_km_input = float(input("Indtast bilens kørte kilometer: "))
 
             update_km_data(sheets, handelspris_input, norm_km_input, current_km_input)
             handelspris, age_group = find_trade_price_based_on_age(sheets, vehicle_age)
