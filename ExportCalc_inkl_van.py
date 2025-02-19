@@ -124,6 +124,26 @@ def fetch_engine_data(registration_number, api_token):
         raise Exception(f"Fejl ved hentning af motordata: {str(e)}")
 
 
+def fetch_weight_data(registration_number, api_token):
+    url = f"https://api.synsbasen.dk/v1/vehicles/registration/{registration_number}?expand[]=weight"
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+
+        data = response.json()["data"]
+        weight_data = data.get("weight", {})
+        return {
+            'total_weight': weight_data.get('total_weight')
+        }
+    except Exception as e:
+        raise Exception(f"Fejl ved hentning af vægtdata: {str(e)}")
+
+
 def update_km_data(sheets, handelspris, norm_km, current_km):
     max_attempts = 3
     for attempt in range(max_attempts):
@@ -379,7 +399,9 @@ def main():
             print("Henter basis køretøjsdata...")
             basic_data = fetch_basic_vehicle_data(registration_number, api_token)
             vehicle_type = basic_data['type']
-            total_weight = basic_data.get('total_weight', 0)
+
+            weight_data = fetch_weight_data(registration_number, api_token)
+            total_weight = weight_data.get('total_weight', 0)  # Brug 0 som default hvis ingen vægt findes
 
             print("Henter evalueringsdata...")
             eval_data = fetch_evaluation_data(registration_number, api_token)
